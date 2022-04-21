@@ -1,0 +1,228 @@
+---
+title: "Supplementary materials for paper: Inferences to individual makers? French trade axe morphology and makers' marks from the La Belle shipwreck"
+author: "Robert Z. Selden, Jr."
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: github_document
+bibliography: book.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load packages
+
+```{r load.packages, echo = TRUE, warning=FALSE}
+# install
+devtools::install_github("mlcollyer/RRPP")
+devtools::install_github("geomorphR/geomorph", 
+                         ref = "Stable", 
+                         build_vignettes = TRUE)
+
+# load
+library(here)
+library(StereoMorph)
+library(geomorph)
+library(tidyverse)
+library(wesanderson)
+```
+
+```{r load.data, include=FALSE}
+# read data and define number of sLMs
+shapes <- readShapes("./shapes")
+coords<- readland.shapes(shapes, nCurvePts = c(5,10,10,10,3,5,5))
+
+# read qualitative data
+qdata <- read.csv("qdata.csv", header = TRUE, row.names = 1)
+```
+
+## Generalised Procrustes Analysis
+
+Landmark data were aligned to a global coordinate system [@RN11622;@RN11623;@RN11563], achieved through generalised Procrustes superimposition [@RN478] performed in R 4.0.4 [@R] using the `geomorph` library v. 3.3.2 [@RN11530;@RN1774]. Procrustes superimposition translates, scales, and rotates the coordinate data to allow for comparisons among objects [@RN11564;@RN478]. The `geomorph` package uses a partial Procrustes superimposition that projects the aligned specimens into tangent space subsequent to alignment in preparation for the use of multivariate methods that assume linear space [@RN1646;@RN11563]. 
+
+```{r gpa, out.width = "100%", dpi = 300, echo=TRUE, warning=FALSE}
+# gpa ----
+Y.gpa <- gpagen(coords, print.progress = FALSE)
+plot(Y.gpa)
+
+# geomorph data frame ----
+gdf <- geomorph.data.frame(shape = Y.gpa$coords, 
+                           size = Y.gpa$Csize,
+                           mark = qdata$mark)
+
+# add centroid size to qdata ----
+qdata$csz <- Y.gpa$Csize
+
+# print qdata
+knitr::kable(qdata, align = "lccc", caption = "Attributes included in qdata.")
+```
+
+### Variation in French trade axe centroid size by mark
+
+```{r box.attr, out.width = "100%", dpi = 300, echo=TRUE, warning=FALSE}
+# attributes for boxplots ----
+csz <- qdata$csz # centroid size
+cask <- qdata$cask # cask
+mark <- qdata$mark  # mark
+
+# boxplot of axe centroid size by mark ----
+csz.mark <- ggplot(qdata, aes(x = mark, y = csz, color = mark)) + 
+  geom_boxplot() +
+  geom_dotplot(binaxis = 'y', stackdir = 'center', dotsize = 0.3) +
+  scale_colour_manual(values = wes_palette("Moonrise2")) +
+  theme(legend.position = "none") +
+  labs(x = 'Mark', y = 'Centroid Size')
+# render plot
+csz.mark
+```
+
+## Principal Components Analysis
+
+Principal components analysis [@RN1746] was used to visualise shape variation among the axes The shape changes described by each principal axis are commonly visualized using thin-plate spline warping of a reference 3D mesh [@RN1731;@RN479]. 
+
+```{r pca, out.width = "100%", dpi = 300, echo=TRUE, warning=FALSE}
+# principal components analysis
+pca<-gm.prcomp(Y.gpa$coords)
+summary(pca)
+
+# set plot parameters to plot by mark
+pch.gps <- c(15,17)[as.factor(mark)]
+col.gps <- wes_palette("Moonrise2")[as.factor(mark)]
+col.hull <- c("#798E87","#C27D38")
+
+# plot pca by mark
+pc.plot1 <- plot(pca, 
+                 asp = 1,
+                 pch = pch.gps,
+                 col = col.gps)
+shapeHulls(pc.plot1, 
+           groups = mark,
+           group.cols = col.hull)
+```
+
+### Minima/maxima of PC1/2
+
+```{r min.max, echo=TRUE, out.width = "100%", dpi = 300, warning=FALSE}
+# plot x/y maxima/minima
+## x - minima
+mean.shape <- mshape(Y.gpa$coords)
+plotRefToTarget(pca$shapes$shapes.comp1$min, 
+                mean.shape)
+
+## x - maxima
+plotRefToTarget(pca$shapes$shapes.comp1$max, 
+                mean.shape)
+
+## y - minima
+plotRefToTarget(pca$shapes$shapes.comp2$min, 
+                mean.shape)
+
+## y - maxima
+plotRefToTarget(pca$shapes$shapes.comp2$max, 
+                mean.shape)
+```
+
+## Composite PCA with warp grids
+
+```{r compositePCA, echo=TRUE, out.width = "100%", dpi = 300, warning=FALSE}
+# print pca with warp grids at max/min X and max/min Y
+knitr::include_graphics('./figures/pca.warp.jpg')
+```
+
+## Test hypothesis
+
+_Hypothesis: There are morphological differences between French trade axes from the La Belle shipwreck that bear an **asterisk** or **DG** makers' marks._
+
+```{r def.mod.1, out.width = "100%", dpi = 300, echo=TRUE, warning=FALSE}
+# size as a function of mark ----
+fit.size.mark <- procD.lm(size ~ mark, 
+                          data = gdf, 
+                          print.progress = FALSE, 
+                          iter = 9999)
+
+## differences in size by mark?
+anova(fit.size.mark)
+
+# shape as a function of mark ----
+fit.shape.mark <- procD.lm(shape ~ mark, 
+                           data = gdf, 
+                           print.progress = FALSE, 
+                           iter = 9999)
+
+## differences in shape by mark? ----
+anova(fit.shape.mark)
+```
+
+## Morphological integration
+
+Are the blade and butt of the axes morphologically integrated?
+
+```{r integ, echo=TRUE, out.width = "100%", dpi = 300, warning=FALSE}
+land.gps <- c("A","A","B","B","A","A","A","A","A","A","B","B","B","B","B","B","B","B",
+              "B","B","B","B","B","B","B","B","B","B","B","B","B","B","B","B","A","A",
+              "A","A","A","A","A")
+  
+it <- integration.test(Y.gpa$coords,
+                       partition.gp = land.gps,
+                       print.progress = FALSE,
+                       iter = 9999)
+summary(it)
+
+## integration plot
+plot(it)
+```
+
+## Modularity test
+
+```{r mod, echo=TRUE, out.width = "100%", dpi = 300, warning=FALSE}
+mod <- modularity.test(Y.gpa$coords,
+                       partition.gp = land.gps,
+                       iter = 9999,
+                       print.progress = FALSE)
+
+summary(mod)
+
+## modularity plot
+plot(mod)
+```
+
+### Mean shapes
+
+```{r def.mod.2, out.width = "100%", dpi = 300, echo=TRUE, warning=FALSE}
+# mean shapes ----
+new.coords<-coords.subset(A = Y.gpa$coords, 
+                          group = qdata$mark)
+names(new.coords)
+
+# group shape means
+mean <- lapply(new.coords, mshape)
+
+# plot mean shapes
+plot(mean$asterisk) # mean shape for axes with asterisk mark
+plot(mean$DG) # mean shape for axes with DG mark
+
+# comparison plot of French trade axes bearing asterisk (gray) 
+# and DG (black) marks
+plotRefToTarget(mean$asterisk, 
+                mean$DG, 
+                method = "point",
+                mag = 2)
+```
+
+### Colophon
+
+This version of the analysis was generated on `r Sys.time()` using the following computational environment and dependencies: 
+
+```{r colophon, cache = FALSE}
+# what R packages and versions were used?
+if ("devtools" %in% installed.packages()) devtools::session_info()
+```
+
+Current Git commit details are:
+
+```{r}
+# where can I find this commit? 
+if ("git2r" %in% installed.packages() & git2r::in_repository(path = ".")) git2r::repository(here::here())  
+```
+
+## References cited
